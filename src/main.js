@@ -22,7 +22,415 @@ const TIERS = [
   { key: "t7", r: 121, color: 0xa0c4ff }
 ];
 
+const CROSSWORD_WORDS = [
+  {
+    number: 1,
+    clue: "birlikte izlediğimiz ikinci film",
+    answer: "aftersun",
+    display: "AFTERSUN",
+    row: 1,
+    col: 7,
+    dir: "across"
+  },
+  {
+    number: 2,
+    clue: "htr312 dersi aldığımız hocanın ismi",
+    answer: "hakkıbaşgüney",
+    display: "HAKKIBAŞGÜNEY",
+    row: 6,
+    col: 2,
+    dir: "across"
+  },
+  {
+    number: 3,
+    clue: "yazdığın şiirin ilk mısrasındaki eksik kelime (... temple remains intact as before)",
+    answer: "solomons",
+    display: "SOLOMONS",
+    row: 8,
+    col: 14,
+    dir: "across"
+  },
+  {
+    number: 4,
+    clue: "charlie brown'daki toza bulanmış karakter (ipucu: linus değil)",
+    answer: "pigpen",
+    display: "PIGPEN",
+    row: 11,
+    col: 0,
+    dir: "across"
+  },
+  {
+    number: 5,
+    clue: "kedili kafedeki kara kedinin adı",
+    answer: "haydut",
+    display: "HAYDUT",
+    row: 13,
+    col: 4,
+    dir: "across"
+  },
+  {
+    number: 6,
+    clue: "sana ilk mesaj attığım tarih",
+    answer: "onüçmayıs",
+    display: "ONÜÇMAYIS",
+    row: 0,
+    col: 14,
+    dir: "down"
+  },
+  {
+    number: 7,
+    clue: "bir türlü okumayı bitiremediğim kitap",
+    answer: "küçükkadınlar",
+    display: "KÜÇÜKKADINLAR",
+    row: 2,
+    col: 5,
+    dir: "down"
+  },
+  {
+    number: 8,
+    clue: "manifest konserinde fotoğraf çekindiğimiz hayvan-1",
+    answer: "goril",
+    display: "GORİL",
+    row: 6,
+    col: 10,
+    dir: "down"
+  },
+  {
+    number: 9,
+    clue: "dışarıdaki ilk dateimizde gittiğimiz plakçının adı (ipucu: magnum ....)",
+    answer: "opus",
+    display: "OPUS",
+    row: 8,
+    col: 17,
+    dir: "down"
+  },
+  {
+    number: 10,
+    clue: "manifest konserinde fotoğraf çekindiğimiz hayvan-2",
+    answer: "civciv",
+    display: "CİVCİV",
+    row: 7,
+    col: 1,
+    dir: "down"
+  }
+];
+
+function normalizeAnswer(str) {
+  return (str || "")
+    .toLocaleLowerCase("tr-TR")
+    .replace(/\s+/g, "")
+    .replace(/['".,!?()\-]/g, "")
+    .replace(/ç/g, "c")
+    .replace(/ğ/g, "g")
+    .replace(/ı/g, "i")
+    .replace(/İ/g, "i")
+    .replace(/ö/g, "o")
+    .replace(/ş/g, "s")
+    .replace(/ü/g, "u");
+}
+
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+class CrosswordScene extends Phaser.Scene {
+  constructor() {
+    super("crossword");
+    this.overlayEl = null;
+    this.correctMap = new Map();
+  }
+
+  create() {
+
+    this.add.text(W / 2, 74, "Tüm cevaplar doğru olunca oyuna geçebilirsin", {
+      fontFamily: "system-ui, -apple-system",
+      fontSize: "14px",
+      color: "#fff"
+    }).setOrigin(0.5);
+
+    this.buildOverlay();
+
+    this.events.once("shutdown", () => {
+      this.destroyOverlay();
+    });
+  }
+
+  destroyOverlay() {
+    if (this.overlayEl) {
+      this.overlayEl.remove();
+      this.overlayEl = null;
+    }
+  }
+
+  buildOverlay() {
+    const app = document.getElementById("app");
+    if (!app) return;
+
+    app.style.position = "relative";
+
+    const overlay = document.createElement("div");
+    overlay.style.position = "absolute";
+    overlay.style.inset = "0";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.pointerEvents = "auto";
+    overlay.style.zIndex = "20";
+
+    const panel = document.createElement("div");
+    panel.style.width = "min(1100px, 94vw)";
+    panel.style.height = "min(86vh, 900px)";
+    panel.style.background = "rgba(80,120,160,0.55)";
+    panel.style.borderRadius = "24px";
+    panel.style.backdropFilter = "blur(4px)";
+    panel.style.boxSizing = "border-box";
+    panel.style.padding = "18px";
+    panel.style.display = "grid";
+    panel.style.gridTemplateColumns = "1.1fr 1fr";
+    panel.style.gap = "18px";
+    panel.style.color = "white";
+    panel.style.fontFamily = "system-ui, -apple-system, sans-serif";
+
+    const left = document.createElement("div");
+    left.style.display = "flex";
+    left.style.flexDirection = "column";
+    left.style.alignItems = "center";
+    left.style.justifyContent = "center";
+    left.style.gap = "14px";
+
+    const gridTitle = document.createElement("div");
+    gridTitle.textContent = "Çengel bulmaca";
+    gridTitle.style.fontSize = "18px";
+    gridTitle.style.fontWeight = "700";
+    left.appendChild(gridTitle);
+
+    const rows = 15;
+    const cols = 22;
+    const gridWrap = document.createElement("div");
+    gridWrap.style.display = "grid";
+    gridWrap.style.gridTemplateColumns = `repeat(${cols}, 28px)`;
+    gridWrap.style.gridAutoRows = "28px";
+    gridWrap.style.gap = "2px";
+    gridWrap.style.padding = "10px";
+    gridWrap.style.background = "rgba(255,255,255,0.06)";
+    gridWrap.style.borderRadius = "16px";
+    left.appendChild(gridWrap);
+
+    const right = document.createElement("div");
+    right.style.display = "flex";
+    right.style.flexDirection = "column";
+    right.style.minHeight = "0";
+
+    const clueTitle = document.createElement("div");
+    clueTitle.textContent = "Sorular";
+    clueTitle.style.fontSize = "18px";
+    clueTitle.style.fontWeight = "700";
+    clueTitle.style.marginBottom = "10px";
+    right.appendChild(clueTitle);
+
+    const clueList = document.createElement("div");
+    clueList.style.flex = "1";
+    clueList.style.overflow = "auto";
+    clueList.style.paddingRight = "6px";
+    right.appendChild(clueList);
+
+    const bottomBar = document.createElement("div");
+    bottomBar.style.display = "flex";
+    bottomBar.style.alignItems = "center";
+    bottomBar.style.justifyContent = "space-between";
+    bottomBar.style.gap = "12px";
+    bottomBar.style.marginTop = "12px";
+    right.appendChild(bottomBar);
+
+    const statusText = document.createElement("div");
+    statusText.textContent = "yunu açmak için cevapla esmaaa";
+    statusText.style.fontSize = "14px";
+    statusText.style.opacity = "0.9";
+    bottomBar.appendChild(statusText);
+
+    const startBtn = document.createElement("button");
+    startBtn.textContent = "oyuna başla";
+    startBtn.disabled = true;
+    startBtn.style.border = "none";
+    startBtn.style.padding = "12px 18px";
+    startBtn.style.borderRadius = "999px";
+    startBtn.style.background = "rgba(255,255,255,0.25)";
+    startBtn.style.color = "white";
+    startBtn.style.fontWeight = "700";
+    startBtn.style.cursor = "not-allowed";
+    startBtn.style.transition = "0.2s ease";
+    bottomBar.appendChild(startBtn);
+
+    const inputMap = new Map();
+
+    for (const word of CROSSWORD_WORDS) {
+      const row = document.createElement("div");
+      row.style.background = "rgba(255,255,255,0.08)";
+      row.style.border = "1px solid rgba(255,255,255,0.12)";
+      row.style.borderRadius = "14px";
+      row.style.padding = "10px";
+      row.style.marginBottom = "10px";
+
+      const clue = document.createElement("div");
+      clue.textContent = `${word.number}) ${word.clue}`;
+      clue.style.fontSize = "14px";
+      clue.style.fontWeight = "600";
+      clue.style.marginBottom = "8px";
+      row.appendChild(clue);
+
+      const input = document.createElement("input");
+      input.type = "text";
+      input.placeholder = "cevabı yaz...";
+      input.autocomplete = "off";
+      input.spellcheck = false;
+      input.style.width = "100%";
+      input.style.boxSizing = "border-box";
+      input.style.padding = "10px 12px";
+      input.style.borderRadius = "10px";
+      input.style.border = "2px solid rgba(255,255,255,0.12)";
+      input.style.background = "rgba(255,255,255,0.12)";
+      input.style.color = "white";
+      input.style.outline = "none";
+      input.style.fontSize = "14px";
+      row.appendChild(input);
+
+      inputMap.set(word.number, input);
+      clueList.appendChild(row);
+    }
+
+  
+
+    const occupied = new Map();
+    const startCells = new Map();
+
+    for (const word of CROSSWORD_WORDS) {
+      startCells.set(`${word.row}-${word.col}`, word.number);
+
+      for (let i = 0; i < word.display.length; i++) {
+        const r = word.dir === "across" ? word.row : word.row + i;
+        const c = word.dir === "across" ? word.col + i : word.col;
+
+        if (!occupied.has(`${r}-${c}`)) occupied.set(`${r}-${c}`, []);
+        occupied.get(`${r}-${c}`).push({ word, index: i });
+      }
+    }
+
+    const renderGrid = () => {
+      gridWrap.innerHTML = "";
+
+      const revealedLetters = new Map();
+
+      for (const word of CROSSWORD_WORDS) {
+        if (this.correctMap.get(word.number)) {
+          for (let i = 0; i < word.display.length; i++) {
+            const r = word.dir === "across" ? word.row : word.row + i;
+            const c = word.dir === "across" ? word.col + i : word.col;
+            revealedLetters.set(`${r}-${c}`, word.display[i]);
+          }
+        }
+      }
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const key = `${r}-${c}`;
+          const cell = document.createElement("div");
+
+          if (!occupied.has(key)) {
+            cell.style.background = "transparent";
+            gridWrap.appendChild(cell);
+            continue;
+          }
+
+          cell.style.position = "relative";
+          cell.style.width = "28px";
+          cell.style.height = "28px";
+          cell.style.background = "rgba(255,255,255,0.20)";
+          cell.style.border = "1px solid rgba(255,255,255,0.28)";
+          cell.style.borderRadius = "6px";
+          cell.style.display = "flex";
+          cell.style.alignItems = "center";
+          cell.style.justifyContent = "center";
+          cell.style.fontSize = "14px";
+          cell.style.fontWeight = "700";
+          cell.style.color = "white";
+          cell.textContent = revealedLetters.get(key) || "";
+
+          if (startCells.has(key)) {
+            const n = document.createElement("div");
+            n.textContent = startCells.get(key);
+            n.style.position = "absolute";
+            n.style.top = "1px";
+            n.style.left = "3px";
+            n.style.fontSize = "8px";
+            n.style.opacity = "0.85";
+            cell.appendChild(n);
+          }
+
+          gridWrap.appendChild(cell);
+        }
+      }
+    };
+
+    const refresh = () => {
+      let allCorrect = true;
+
+      for (const word of CROSSWORD_WORDS) {
+        const input = inputMap.get(word.number);
+        const correct = normalizeAnswer(input.value) === normalizeAnswer(word.answer);
+
+        this.correctMap.set(word.number, correct);
+
+        if (input.value.trim().length === 0) {
+          input.style.borderColor = "rgba(255,255,255,0.12)";
+          input.style.background = "rgba(255,255,255,0.12)";
+        } else if (correct) {
+          input.style.borderColor = "rgba(178, 255, 178, 0.95)";
+          input.style.background = "rgba(110, 190, 110, 0.18)";
+        } else {
+          input.style.borderColor = "rgba(255, 170, 170, 0.95)";
+          input.style.background = "rgba(190, 90, 90, 0.16)";
+        }
+
+        if (!correct) allCorrect = false;
+      }
+
+      renderGrid();
+
+      if (allCorrect) {
+        statusText.textContent = "bravo aşkım";
+        startBtn.disabled = false;
+        startBtn.style.cursor = "pointer";
+        startBtn.style.background = "rgba(255,255,255,0.88)";
+        startBtn.style.color = "#7a5634";
+      } else {
+        statusText.textContent = "oyunu açmak için cevapla esmaaa";
+        startBtn.disabled = true;
+        startBtn.style.cursor = "not-allowed";
+        startBtn.style.background = "rgba(255,255,255,0.25)";
+        startBtn.style.color = "white";
+      }
+    };
+
+    for (const [, input] of inputMap) {
+      input.addEventListener("input", refresh);
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") refresh();
+      });
+    }
+
+    startBtn.addEventListener("click", () => {
+      if (startBtn.disabled) return;
+      this.destroyOverlay();
+      this.scene.start("game");
+    });
+
+    panel.appendChild(left);
+    panel.appendChild(right);
+    overlay.appendChild(panel);
+    app.appendChild(overlay);
+
+    this.overlayEl = overlay;
+    refresh();
+  }
+}
 
 class GameScene extends Phaser.Scene {
   constructor() {
@@ -71,7 +479,7 @@ class GameScene extends Phaser.Scene {
     this.easterText = null;
 
     // Arkaplan
-    this.add.rectangle(W/2, H/2, W, H, 0xd8a36a).setDepth(-10);
+    this.add.rectangle(W/2, H/2, W, H, 0xcfefff).setDepth(-10);
 
     // UI
     this.scoreText = this.add.text(18, 16, "Score: 0", {
@@ -568,7 +976,7 @@ new Phaser.Game({
   parent: "app",
   width: W,
   height: H,
-  backgroundColor: "#d8a36a",
+  backgroundColor: "#cfefff",
   physics: {
     default: "matter",
     matter: {
@@ -576,5 +984,5 @@ new Phaser.Game({
       debug: false
     }
   },
-  scene: [GameScene]
+  scene: [CrosswordScene, GameScene]
 });
