@@ -739,21 +739,61 @@ class GameScene extends Phaser.Scene {
   }
 
   createBoxWalls() {
-    // Görsel kutu
-    this.add.rectangle(BOX.x + BOX.w/2, BOX.y + BOX.h/2, BOX.w, BOX.h, 0x000000, 0.08);
-    this.add.rectangle(BOX.x + BOX.w/2, BOX.y + BOX.h/2, BOX.w, BOX.h, 0xffffff, 0.10).setStrokeStyle(6, 0xffffff, 0.18);
+  // Görsel kutu
+  this.add.rectangle(BOX.x + BOX.w/2, BOX.y + BOX.h/2, BOX.w, BOX.h, 0x000000, 0.08);
+  this.add.rectangle(BOX.x + BOX.w/2, BOX.y + BOX.h/2, BOX.w, BOX.h, 0xffffff, 0.10).setStrokeStyle(6, 0xffffff, 0.18);
 
-    const thickness = 30;
-    const leftX = BOX.x - thickness/2;
-    const rightX = BOX.x + BOX.w + thickness/2;
-    const floorY = BOX.y + BOX.h + thickness/2;
+  const wallThickness = 34;
+  const floorThickness = 42;
 
-    // Sol, sağ, zemin (tavan yok)
-    this.matter.add.rectangle(leftX, BOX.y + BOX.h/2, thickness, BOX.h + thickness, { isStatic: true });
-    this.matter.add.rectangle(rightX, BOX.y + BOX.h/2, thickness, BOX.h + thickness, { isStatic: true });
-    this.matter.add.rectangle(BOX.x + BOX.w/2, floorY, BOX.w + thickness*2, thickness, { isStatic: true });
-  }
+  const leftX = BOX.x - wallThickness / 2;
+  const rightX = BOX.x + BOX.w + wallThickness / 2;
 
+  // Zemini biraz daha kalın ve duvarlarla hafif overlap olacak şekilde yapıyoruz
+  const floorY = BOX.y + BOX.h + floorThickness / 2 - 2;
+
+  // Sol, sağ, zemin
+  this.matter.add.rectangle(
+    leftX,
+    BOX.y + BOX.h / 2,
+    wallThickness,
+    BOX.h + floorThickness,
+    { isStatic: true }
+  );
+
+  this.matter.add.rectangle(
+    rightX,
+    BOX.y + BOX.h / 2,
+    wallThickness,
+    BOX.h + floorThickness,
+    { isStatic: true }
+  );
+
+  this.matter.add.rectangle(
+    BOX.x + BOX.w / 2,
+    floorY,
+    BOX.w + wallThickness * 2 + 8,
+    floorThickness,
+    { isStatic: true }
+  );
+
+  // Alt köşe kaçaklarını önlemek için minik köşe blokları
+  this.matter.add.rectangle(
+    BOX.x + 6,
+    BOX.y + BOX.h - 2,
+    16,
+    16,
+    { isStatic: true }
+  );
+
+  this.matter.add.rectangle(
+    BOX.x + BOX.w - 6,
+    BOX.y + BOX.h - 2,
+    16,
+    16,
+    { isStatic: true }
+  );
+}
   randSpawnTier() {
     // Başlangıçta küçük şeyler daha sık gelsin
     // (0-3 ağırlıklı)
